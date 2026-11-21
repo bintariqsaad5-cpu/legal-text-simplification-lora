@@ -1,0 +1,38 @@
+# Legal Text Simplification with LoRA - dependencies
+#
+# On Google Colab / Kaggle: PyTorch is already installed, so run
+#   pip install -q -r requirements.txt
+# On your laptop (no NVIDIA GPU): you only need the "light" libraries
+# (pandas, datasets, textstat, gradio, jupyter) for data prep and editing.
+# Install PyTorch separately from pytorch.org only if you need it.
+
+# --- Core model and training (needed on Colab/Kaggle) ---
+transformers
+datasets
+peft
+accelerate
+bitsandbytes
+
+# --- Evaluation ---
+evaluate
+rouge_score
+bert_score
+textstat
+
+# --- Data handling ---
+pandas
+numpy
+scikit-learn
+
+# --- Plots ---
+matplotlib
+
+# --- Demo interface ---
+gradio
+
+# --- Notebook support (local VS Code) ---
+jupyter
+ipykernel
+
+# --- Optional: push/pull models from Hugging Face Hub ---
+huggingface_hub

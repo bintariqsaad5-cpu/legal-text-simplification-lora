@@ -1,0 +1,388 @@
+<title>Legal Text Simplifier Report</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+/* Layout: one reading column; verdict first, then metrics, loss curve, side-by-side clauses.
+   Palette: ink, slate neutrals, one blue for the fine-tuned model, a highlighter yellow for emphasis. */
+:root {
+  --bg: #f4f6f9; --surface: #ffffff; --ink: #14202b; --muted: #5a6877; --line: #dbe1e8;
+  --base: #8896a6; --ft: #1f4fd8; --ft-soft: #e6ecfc; --mark: #ffe066;
+  --good: #137a4a; --bad: #b3261e; --warn-bg: #fff4cc; --warn-ink: #5a4500;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f151c; --surface: #172029; --ink: #e8edf2; --muted: #9aa8b6; --line: #2a3643;
+  --base: #7d8b9b; --ft: #7fa2ff; --ft-soft: #1d2a4a; --mark: #6b5a10;
+  --good: #4cc38a; --bad: #ff8a80; --warn-bg: #3a3012; --warn-ink: #f3dd8a; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0f151c; --surface: #172029; --ink: #e8edf2; --muted: #9aa8b6; --line: #2a3643;
+  --base: #7d8b9b; --ft: #7fa2ff; --ft-soft: #1d2a4a; --mark: #6b5a10;
+  --good: #4cc38a; --bad: #ff8a80; --warn-bg: #3a3012; --warn-ink: #f3dd8a; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--sans);
+  padding-block: 28px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 980px; margin: 0 auto; display: grid; gap: 28px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+h1 { font: 600 clamp(1.6rem, 4vw, 2.2rem)/1.15 var(--sans); letter-spacing: -0.01em; }
+h2 { font: 600 1.05rem/1.3 var(--sans); }
+.eyebrow { font: 500 .72rem var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.sub { color: var(--muted); margin: 8px 0 0; max-width: 65ch; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.chip { font: 500 .78rem var(--mono); padding: 3px 9px; border: 1px solid var(--line); border-radius: 99px; background: var(--surface); color: var(--muted); }
+section { display: grid; gap: 12px; min-width: 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; min-width: 0; }
+.bar-top { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+button, .btn { font: 500 .85rem var(--sans); color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 7px; padding: 7px 12px; cursor: pointer; }
+button:hover, .btn:hover { border-color: var(--ft); }
+button:focus-visible, .btn:focus-within, .drop:focus-visible { outline: 2px solid var(--ft); outline-offset: 2px; }
+button.primary { background: var(--ft); border-color: var(--ft); color: #fff; }
+:root[data-theme="dark"] button.primary { color: #0f151c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) button.primary { color: #0f151c; } }
+.btn input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.btn { position: relative; display: inline-block; }
+.banner { background: var(--warn-bg); color: var(--warn-ink); border-radius: 8px; padding: 10px 14px; font-size: .88rem; }
+
+/* empty state */
+.drop { border: 1.5px dashed var(--line); border-radius: 10px; padding: 26px 20px; display: grid; gap: 14px; justify-items: start; background: var(--surface); }
+.drop.over { border-color: var(--ft); background: var(--ft-soft); }
+.steps { margin: 0; padding-left: 1.2em; color: var(--muted); display: grid; gap: 4px; }
+.steps code, code { font: 400 .85em var(--mono); background: var(--bg); padding: 1px 5px; border-radius: 4px; color: var(--ink); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* verdict */
+.verdict { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.stat { display: grid; gap: 2px; align-content: start; }
+.stat .k { color: var(--muted); font-size: .8rem; }
+.stat .v { font: 500 1.9rem/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+.stat .d { font: 400 .8rem var(--mono); color: var(--muted); }
+.up { color: var(--good); } .down { color: var(--bad); }
+
+/* metric rows */
+.mrow { display: grid; grid-template-columns: 120px 1fr 88px; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+.mrow:first-of-type { border-top: 0; }
+.mname { font-weight: 500; font-size: .88rem; }
+.bars { display: grid; gap: 4px; min-width: 0; }
+.bl { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+.track { height: 9px; background: var(--bg); border-radius: 5px; overflow: hidden; }
+.fill { height: 100%; border-radius: 5px; }
+.fill.b { background: var(--base); } .fill.f { background: var(--ft); }
+.val { font: 400 .78rem var(--mono); font-variant-numeric: tabular-nums; min-width: 4.2em; text-align: right; }
+.delta { font: 500 .85rem var(--mono); text-align: right; font-variant-numeric: tabular-nums; }
+.legend { display: flex; gap: 16px; font-size: .8rem; color: var(--muted); flex-wrap: wrap; }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .85rem; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+th { color: var(--muted); font-weight: 500; font-size: .75rem; letter-spacing: .04em; text-transform: uppercase; }
+td.num { font-family: var(--mono); }
+.two { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; }
+@media (max-width: 760px) { .two { grid-template-columns: 1fr; } .mrow { grid-template-columns: 1fr; gap: 6px; } .delta { text-align: left; } }
+svg { max-width: 100%; height: auto; display: block; }
+svg text { fill: var(--muted); font: 400 11px var(--mono); }
+
+/* examples */
+.ex { display: grid; gap: 12px; }
+.ex .clause { font: 400 1rem/1.6 var(--serif); }
+.ex .clause mark { background: transparent; }
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 760px) { .cols { grid-template-columns: 1fr; } }
+.cell { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; overflow-wrap: anywhere; }
+.cell.ft { border-color: var(--ft); background: var(--ft-soft); }
+.cell .lab { font: 500 .7rem var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.cell p { margin: 0; font-size: .92rem; }
+.tag { font: 500 .72rem var(--mono); padding: 2px 8px; border-radius: 99px; background: var(--mark); color: var(--ink); width: fit-content; }
+.filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.filters button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.note { color: var(--muted); font-size: .85rem; max-width: 70ch; }
+
+@media print {
+  body { background: #fff; color: #000; padding: 0; }
+  .noprint { display: none !important; }
+  .panel, .cell { break-inside: avoid; border-color: #bbb; }
+  .ex { break-inside: avoid; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">NLP project &middot; fine-tuning small language models</div>
+    <h1 id="title">Legal Text Simplifier</h1>
+    <p class="sub">A small language model rewrites dense contract clauses as short plain-English summaries. This report compares the original model with the LoRA fine-tuned one on clauses it never saw during training.</p>
+    <div class="chips" id="chips"></div>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <section id="empty" class="noprint">
+    <div class="drop" id="drop" tabindex="0">
+      <h2>Load your results</h2>
+      <p class="sub" style="margin:0">Drop <code>results_bundle.json</code> here. The notebook run creates it in three steps:</p>
+      <ol class="steps">
+        <li>Run the notebook on Colab until it saves <code>results/metrics.csv</code> and <code>train_log.json</code>.</li>
+        <li>Copy the <code>results</code> folder into your project and run <code>python src/make_report_bundle.py</code>.</li>
+        <li>Drop the new <code>results/results_bundle.json</code> on this page.</li>
+      </ol>
+      <div class="actions">
+        <label class="btn primary" style="color:inherit">Choose file<input type="file" id="file" accept=".json,application/json"></label>
+        <button id="sample" type="button">Preview layout with dummy numbers</button>
+      </div>
+    </div>
+  </section>
+
+  <main id="report" hidden>
+    <div style="display:grid;gap:28px">
+    <section>
+      <div class="bar-top"><h2>Result in one look</h2>
+        <button class="noprint" id="reset" type="button">Load another file</button></div>
+      <div class="panel verdict" id="verdict"></div>
+    </section>
+
+    <section>
+      <h2>Base model vs fine-tuned, same test clauses, same prompt</h2>
+      <div class="panel">
+        <div class="legend" style="margin-bottom:6px"><span><i class="sw" style="background:var(--base)"></i>Base model</span><span><i class="sw" style="background:var(--ft)"></i>Fine-tuned (LoRA)</span></div>
+        <div id="metrics"></div>
+        <p class="note" style="margin:10px 0 0">ROUGE and BERTScore measure closeness to the human summary. Flesch Reading Ease measures how easy the text is to read (higher is easier). Average words only describes length, so it carries no colour.</p>
+      </div>
+    </section>
+
+    <section class="two">
+      <div style="display:grid;gap:12px;align-content:start">
+        <h2>Training loss</h2>
+        <div class="panel" id="lossbox"></div>
+      </div>
+      <div style="display:grid;gap:12px;align-content:start">
+        <h2>Training settings</h2>
+        <div class="panel scroll"><table id="hyper"></table></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="bar-top"><h2>Example clauses</h2>
+        <div class="filters noprint" id="filters">
+          <button type="button" data-f="all" aria-pressed="true">All</button>
+          <button type="button" data-f="win" aria-pressed="false">Fine-tuned better</button>
+          <button type="button" data-f="loss" aria-pressed="false">Base better</button>
+        </div></div>
+      <div id="examples" style="display:grid;gap:14px"></div>
+      <div class="actions noprint"><button id="more" type="button" hidden></button></div>
+    </section>
+
+    <section>
+      <h2>Limitations</h2>
+      <div class="panel note" style="max-width:none">
+        The dataset is small (a few hundred clauses), so the test set holds only a few dozen, and a small score gap can be noise. ROUGE rewards matching words, not correct meaning, so read the examples before trusting a number. A simplified clause can drop a condition or change its meaning. Output is a reading aid, not legal advice, and does not replace the original contract.
+      </div>
+    </section>
+    </div>
+  </main>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { data: null, filter: 'all', shown: 6 };
+
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function fmt(k, v) { if (v == null || isNaN(v)) return 'n/a'; return (k === 'Flesch' || k === 'Avg words') ? Number(v).toFixed(1) : Number(v).toFixed(3); }
+  function label(k) { return k === 'Flesch' ? 'Flesch ease' : k === 'BERTScore-F1' ? 'BERTScore F1' : k; }
+
+  function validate(d) {
+    if (!d || !Array.isArray(d.metrics) || d.metrics.length < 2) throw new Error('This file has no metrics for two models.');
+    return d;
+  }
+
+  function render(d, dummy) {
+    state.data = d; state.shown = 6; state.filter = 'all';
+    var meta = d.meta || {};
+    $('title').textContent = meta.title || 'Legal Text Simplifier';
+    var chips = $('chips'); chips.textContent = '';
+    [meta.model, meta.method, meta.dataset, meta.n_test ? meta.n_test + ' test clauses' : null].forEach(function (c) { if (c) chips.appendChild(el('span', 'chip', c)); });
+    var b = $('banner');
+    b.hidden = !dummy;
+    if (dummy) b.textContent = 'Dummy numbers for previewing the layout. These are not results from your model.';
+    $('empty').hidden = true; $('report').hidden = false;
+    renderVerdict(d); renderMetrics(d); renderLoss(d); renderHyper(d); renderExamples();
+  }
+
+  function keys(d) {
+    return Object.keys(d.metrics[0]).filter(function (k) { return k !== 'model' && typeof d.metrics[0][k] === 'number'; });
+  }
+
+  function renderVerdict(d) {
+    var box = $('verdict'); box.textContent = '';
+    var base = d.metrics[0], ft = d.metrics[1];
+    var ex = d.examples || [];
+    var wins = ex.filter(function (e) { return e.ft_rl > e.base_rl; }).length;
+    if (ex.length) {
+      var s = el('div', 'stat');
+      s.appendChild(el('div', 'k', 'Clauses where fine-tuned scores higher'));
+      s.appendChild(el('div', 'v', wins + ' / ' + ex.length));
+      s.appendChild(el('div', 'd', 'by ROUGE-L, ' + Math.round(100 * wins / ex.length) + '%'));
+      box.appendChild(s);
+    }
+    ['ROUGE-L', 'BERTScore-F1', 'Flesch'].forEach(function (k) {
+      if (typeof base[k] !== 'number') return;
+      var diff = ft[k] - base[k];
+      var s = el('div', 'stat');
+      s.appendChild(el('div', 'k', label(k) + ' (fine-tuned)'));
+      s.appendChild(el('div', 'v', fmt(k, ft[k])));
+      var dd = el('div', 'd ' + (diff >= 0 ? 'up' : 'down'), (diff >= 0 ? '+' : '') + fmt(k, diff) + ' vs base ' + fmt(k, base[k]));
+      s.appendChild(dd); box.appendChild(s);
+    });
+  }
+
+  function renderMetrics(d) {
+    var box = $('metrics'); box.textContent = '';
+    var base = d.metrics[0], ft = d.metrics[1];
+    keys(d).forEach(function (k) {
+      var max = Math.max(base[k], ft[k]) * 1.08 || 1;
+      var row = el('div', 'mrow');
+      row.appendChild(el('div', 'mname', label(k)));
+      var bars = el('div', 'bars');
+      [['b', base[k]], ['f', ft[k]]].forEach(function (p) {
+        var bl = el('div', 'bl'); var tr = el('div', 'track'); var f = el('div', 'fill ' + p[0]);
+        f.style.width = Math.max(1, 100 * p[1] / max) + '%'; tr.appendChild(f);
+        bl.appendChild(tr); bl.appendChild(el('span', 'val', fmt(k, p[1]))); bars.appendChild(bl);
+      });
+      row.appendChild(bars);
+      var diff = ft[k] - base[k];
+      var neutral = k === 'Avg words';
+      row.appendChild(el('div', 'delta ' + (neutral ? '' : diff >= 0 ? 'up' : 'down'), (diff >= 0 ? '+' : '') + fmt(k, diff)));
+      box.appendChild(row);
+    });
+  }
+
+  function renderLoss(d) {
+    var box = $('lossbox'); box.textContent = '';
+    var tr = (d.loss && d.loss.train) || [], ev = (d.loss && d.loss.eval) || [];
+    if (tr.length < 2) { box.appendChild(el('p', 'note', 'No training log in this file. Save trainer.state.log_history to results/train_log.json and rebuild the bundle.')); return; }
+    var W = 420, H = 230, L = 40, R = 12, T = 12, B = 30;
+    var all = tr.concat(ev);
+    var xmax = Math.max.apply(null, all.map(function (p) { return p[0]; }));
+    var ymax = Math.max.apply(null, all.map(function (p) { return p[1]; }));
+    var ymin = Math.min.apply(null, all.map(function (p) { return p[1]; }));
+    var y0 = Math.floor(Math.min(ymin, 0.5) * 10) / 10, y1 = Math.ceil(ymax * 10) / 10;
+    var X = function (v) { return L + (W - L - R) * v / xmax; };
+    var Y = function (v) { return T + (H - T - B) * (1 - (v - y0) / (y1 - y0)); };
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Training and validation loss by step">';
+    for (var i = 0; i <= 4; i++) {
+      var v = y0 + (y1 - y0) * i / 4, yy = Y(v);
+      s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + yy + '" y2="' + yy + '" stroke="var(--line)" stroke-width="1"/>';
+      s += '<text x="' + (L - 6) + '" y="' + (yy + 4) + '" text-anchor="end">' + v.toFixed(2) + '</text>';
+    }
+    for (var j = 0; j <= 4; j++) {
+      var sv = Math.round(xmax * j / 4);
+      s += '<text x="' + X(sv) + '" y="' + (H - 10) + '" text-anchor="middle">' + sv + '</text>';
+    }
+    var path = function (pts) { return pts.map(function (p, i) { return (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1); }).join(' '); };
+    s += '<path d="' + path(tr) + '" fill="none" stroke="var(--base)" stroke-width="2"/>';
+    if (ev.length) {
+      s += '<path d="' + path(ev) + '" fill="none" stroke="var(--ft)" stroke-width="2"/>';
+      ev.forEach(function (p) { s += '<circle cx="' + X(p[0]) + '" cy="' + Y(p[1]) + '" r="4" fill="var(--ft)"/>'; });
+      var last = ev[ev.length - 1];
+      s += '<text x="' + Math.min(X(last[0]) + 0, W - R) + '" y="' + (Y(last[1]) - 9) + '" text-anchor="end" style="fill:var(--ft)">' + last[1].toFixed(2) + '</text>';
+    }
+    s += '<text x="' + (W - R) + '" y="' + (H - 10) + '" text-anchor="end">step</text></svg>';
+    box.innerHTML = s;
+    var lg = el('div', 'legend');
+    lg.innerHTML = '<span><i class="sw" style="background:var(--base)"></i>Train loss</span><span><i class="sw" style="background:var(--ft)"></i>Validation loss</span>';
+    box.appendChild(lg);
+  }
+
+  function renderHyper(d) {
+    var t = $('hyper'); t.textContent = '';
+    var h = d.hyper || {};
+    Object.keys(h).forEach(function (k) { var r = t.insertRow(); r.insertCell().textContent = k; var c = r.insertCell(); c.className = 'num'; c.textContent = h[k]; });
+    if (!Object.keys(h).length) t.insertRow().insertCell().textContent = 'Not provided.';
+  }
+
+  function renderExamples() {
+    var d = state.data, ex = (d.examples || []).map(function (e, i) { e._i = i; return e; });
+    var f = state.filter;
+    var list = ex.filter(function (e) { return f === 'all' || (f === 'win' ? e.ft_rl > e.base_rl : e.ft_rl < e.base_rl); });
+    var box = $('examples'); box.textContent = '';
+    if (!ex.length) { box.appendChild(el('p', 'note', 'No example outputs in this file.')); $('more').hidden = true; return; }
+    list.slice(0, state.shown).forEach(function (e) {
+      var p = el('article', 'panel ex');
+      var top = el('div', 'bar-top'); top.appendChild(el('span', 'eyebrow', 'Test clause ' + (e._i + 1)));
+      if (typeof e.ft_rl === 'number') {
+        var win = e.ft_rl > e.base_rl, tie = e.ft_rl === e.base_rl;
+        top.appendChild(el('span', 'tag', tie ? 'tie on ROUGE-L' : (win ? 'fine-tuned closer to reference' : 'base closer to reference')));
+      }
+      p.appendChild(top);
+      p.appendChild(el('div', 'clause', e.clause));
+      var cols = el('div', 'cols');
+      [['Human reference', e.reference, '', null], ['Base model', e.base, '', e.base_rl], ['Fine-tuned', e.ft, ' ft', e.ft_rl]].forEach(function (c) {
+        var cell = el('div', 'cell' + c[2]); var lab = el('div', 'lab'); lab.appendChild(el('span', null, c[0]));
+        if (typeof c[3] === 'number') lab.appendChild(el('span', null, 'RL ' + c[3].toFixed(2)));
+        cell.appendChild(lab); cell.appendChild(el('p', null, c[1] || '(empty output)')); cols.appendChild(cell);
+      });
+      p.appendChild(cols); box.appendChild(p);
+    });
+    var more = $('more');
+    more.hidden = list.length <= state.shown;
+    more.textContent = 'Show ' + Math.min(10, list.length - state.shown) + ' more (' + list.length + ' total)';
+  }
+
+  $('more').addEventListener('click', function () { state.shown += 10; renderExamples(); });
+  $('filters').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    state.filter = b.dataset.f; state.shown = 6;
+    Array.prototype.forEach.call($('filters').children, function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+    renderExamples();
+  });
+  $('reset').addEventListener('click', function () { $('report').hidden = true; $('empty').hidden = false; $('banner').hidden = true; });
+
+  function readFile(file) {
+    var r = new FileReader();
+    r.onload = function () { try { render(validate(JSON.parse(r.result)), false); } catch (err) { showErr(err.message || 'Could not read this file.'); } };
+    r.readAsText(file);
+  }
+  function showErr(m) { var b = $('banner'); b.hidden = false; b.textContent = m + ' Use the results_bundle.json made by src/make_report_bundle.py.'; }
+  $('file').addEventListener('change', function (e) { if (e.target.files[0]) readFile(e.target.files[0]); });
+  var drop = $('drop');
+  ['dragenter', 'dragover'].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
+  ['dragleave', 'drop'].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.classList.remove('over'); }); });
+  drop.addEventListener('drop', function (e) { if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
+
+  function sample() {
+    var clauses = [
+      ['you may not copy, modify, distribute, sell, or lease any part of our services or included software, nor may you reverse engineer or attempt to extract the source code of that software.', 'you can t copy, sell, or reverse engineer the software.', 'The text prohibits users from copying, modifying, distributing, selling, leasing, or reverse engineering the software or its source code.', 'you can t copy or sell the software or reverse engineer it.'],
+      ['we may suspend or terminate your access to the service at any time, without notice, if we believe you have violated these terms.', 'they can cut off your access without warning if they think you broke the rules.', 'We can suspend or terminate your access at any time without notice if we think you broke the terms.', 'we can end your access at any time without notice.'],
+      ['if you ve bought the game you may modify it but do not distribute the changed versions of our software.', 'you may mod the game but don t distribute hacked clients.', 'Players who bought the game may modify it, but changed versions of the software may not be shared with others.', 'you may mod the game but you can t share changed versions.']
+    ];
+    var ex = [];
+    for (var i = 0; i < 12; i++) {
+      var c = clauses[i % 3];
+      var br = 0.14 + ((i * 37) % 11) / 100, fr = 0.22 + ((i * 53) % 17) / 100;
+      ex.push({ clause: c[0], reference: c[1], base: c[2], ft: c[3], base_rl: br, ft_rl: fr });
+    }
+    var tr = [], ev = [];
+    for (var s = 5; s <= 60; s += 5) tr.push([s, 2.4 * Math.exp(-s / 22) + 0.9 + ((s * 7) % 5) / 100]);
+    [20, 40, 60].forEach(function (s, i) { ev.push([s, [1.55, 1.38, 1.36][i]]); });
+    return {
+      meta: { title: 'Legal Text Simplification with LoRA', model: 'Qwen2.5-3B-Instruct', method: 'LoRA / QLoRA 4-bit', dataset: 'plain_english_contracts_summarization', n_test: 12 },
+      hyper: { 'LoRA rank (r)': 16, 'LoRA alpha': 32, 'Learning rate': '2e-4', 'Epochs': 3, 'Batch size': '4 x 4 = 16', 'Seed': 42 },
+      metrics: [
+        { model: 'Base', 'ROUGE-1': 0.261, 'ROUGE-2': 0.082, 'ROUGE-L': 0.205, 'BERTScore-F1': 0.871, Flesch: 38.2, 'Avg words': 41.5 },
+        { model: 'Fine-tuned', 'ROUGE-1': 0.352, 'ROUGE-2': 0.151, 'ROUGE-L': 0.311, 'BERTScore-F1': 0.889, Flesch: 61.7, 'Avg words': 15.2 }
+      ],
+      examples: ex, loss: { train: tr, eval: ev }
+    };
+  }
+  $('sample').addEventListener('click', function () { render(sample(), true); });
+
+  // When hosted next to the page, load the bundle automatically.
+  try {
+    fetch('results_bundle.json').then(function (r) { if (!r.ok) throw 0; return r.json(); })
+      .then(function (d) { render(validate(d), false); }).catch(function () {});
+  } catch (e) {}
+})();
+</script>

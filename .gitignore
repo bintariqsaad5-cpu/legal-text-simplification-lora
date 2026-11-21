@@ -1,0 +1,48 @@
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# ---------- Virtual environments ----------
+.venv/
+venv/
+env/
+
+# ---------- Jupyter ----------
+.ipynb_checkpoints/
+
+# ---------- Secrets (never commit these) ----------
+.env
+*.env
+secrets.json
+token.txt
+hf_token*
+
+# ---------- Model weights and large files ----------
+# GitHub blocks files over 100 MB. Keep base models and checkpoints out.
+checkpoints/
+outputs/
+runs/
+wandb/
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.gguf
+# If your small LoRA adapter should be committed, remove the line for it
+# above or store it on Hugging Face Hub and link it in the README.
+
+# ---------- Downloaded data and caches ----------
+data/raw/
+.cache/
+huggingface/
+
+# ---------- Editor and OS files ----------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
